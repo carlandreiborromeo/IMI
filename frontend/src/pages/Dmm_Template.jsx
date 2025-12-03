@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import api from '../utils/api';
+
 const Dmm_Template = () => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
-
   const [template, setTemplate] = useState({
     equipmentName: '',
     sections: []
@@ -12,38 +12,28 @@ const Dmm_Template = () => {
   const addSection = () => {
     setTemplate({
       ...template,
-      sections: [
-        ...template.sections,
-        {
-          sectionName: '',
-          dataColumns: 5,
-          rows: []
+      sections: [...template.sections, { sectionName: '', dataColumns: 5, rows: [] }]
+    });
+  };
+
+  const updateSection = (sectionIdx, field, value) => {
+    const newSections = [...template.sections];
+    
+    if (field === 'dataColumns') {
+      const numColumns = parseInt(value) || 1;
+      const oldColumns = newSections[sectionIdx].dataColumns;
+      newSections[sectionIdx].dataColumns = numColumns;
+      
+      newSections[sectionIdx].rows.forEach(row => {
+        if (numColumns > oldColumns) {
+          row.dataValues.push(...Array(numColumns - oldColumns).fill(''));
+        } else if (numColumns < oldColumns) {
+          row.dataValues = row.dataValues.slice(0, numColumns);
         }
-      ]
-    });
-  };
-
-  const updateSectionName = (sectionIdx, value) => {
-    const newSections = [...template.sections];
-    newSections[sectionIdx].sectionName = value;
-    setTemplate({ ...template, sections: newSections });
-  };
-
-  const updateDataColumns = (sectionIdx, value) => {
-    const newSections = [...template.sections];
-    const numColumns = parseInt(value) || 1;
-    const oldColumns = newSections[sectionIdx].dataColumns;
-    
-    newSections[sectionIdx].dataColumns = numColumns;
-    
-    newSections[sectionIdx].rows.forEach(row => {
-      if (numColumns > oldColumns) {
-        const diff = numColumns - oldColumns;
-        row.dataValues.push(...Array(diff).fill(''));
-      } else if (numColumns < oldColumns) {
-        row.dataValues = row.dataValues.slice(0, numColumns);
-      }
-    });
+      });
+    } else {
+      newSections[sectionIdx][field] = value;
+    }
     
     setTemplate({ ...template, sections: newSections });
   };
@@ -52,28 +42,27 @@ const Dmm_Template = () => {
     const newSections = [...template.sections];
     const numDataColumns = newSections[sectionIdx].dataColumns;
     
-    const newRow = {
+    newSections[sectionIdx].rows.push({
       appliedValue: '',
       unit: '',
       dataValues: Array(numDataColumns).fill(''),
       uncertainty: '',
       marginOfError: '',
       remarks: ''
-    };
+    });
     
-    newSections[sectionIdx].rows.push(newRow);
     setTemplate({ ...template, sections: newSections });
   };
 
-  const updateRowField = (sectionIdx, rowIdx, field, value) => {
+  const updateRow = (sectionIdx, rowIdx, field, value, dataIdx = null) => {
     const newSections = [...template.sections];
-    newSections[sectionIdx].rows[rowIdx][field] = value;
-    setTemplate({ ...template, sections: newSections });
-  };
-
-  const updateDataValue = (sectionIdx, rowIdx, dataIdx, value) => {
-    const newSections = [...template.sections];
-    newSections[sectionIdx].rows[rowIdx].dataValues[dataIdx] = value;
+    
+    if (dataIdx !== null) {
+      newSections[sectionIdx].rows[rowIdx].dataValues[dataIdx] = value;
+    } else {
+      newSections[sectionIdx].rows[rowIdx][field] = value;
+    }
+    
     setTemplate({ ...template, sections: newSections });
   };
 
@@ -84,31 +73,55 @@ const Dmm_Template = () => {
   };
 
   const removeSection = (sectionIdx) => {
-    const newSections = template.sections.filter((_, idx) => idx !== sectionIdx);
-    setTemplate({ ...template, sections: newSections });
+    setTemplate({
+      ...template,
+      sections: template.sections.filter((_, idx) => idx !== sectionIdx)
+    });
   };
 
-  const saveTemplate = async () => {
+  const validateTemplate = () => {
     if (!template.equipmentName.trim()) {
-      setMessage({ type: 'error', text: 'Please enter an equipment name' });
-      return;
+      return 'Please enter an equipment name';
     }
 
     if (template.sections.length === 0) {
-      setMessage({ type: 'error', text: 'Please add at least one section' });
-      return;
+      return 'Please add at least one section';
     }
 
     for (let section of template.sections) {
       if (!section.sectionName.trim()) {
-        setMessage({ type: 'error', text: 'All sections must have a name' });
-        return;
+        return 'All sections must have a name';
       }
       
       if (section.dataColumns < 1) {
-        setMessage({ type: 'error', text: 'Each section must have at least 1 data column' });
-        return;
+        return 'Each section must have at least 1 data column';
       }
+
+      if (section.rows.length === 0) {
+        return `Section "${section.sectionName}" must have at least one row`;
+      }
+
+      for (let i = 0; i < section.rows.length; i++) {
+        const row = section.rows[i];
+        
+        if (!row.appliedValue.trim()) {
+          return `Row ${i + 1} in "${section.sectionName}" requires an Applied Value`;
+        }
+
+        if (!row.unit.trim()) {
+          return `Row ${i + 1} in "${section.sectionName}" requires a Unit`;
+        }
+      }
+    }
+
+    return null;
+  };
+
+  const saveTemplate = async () => {
+    const error = validateTemplate();
+    if (error) {
+      setMessage({ type: 'error', text: error });
+      return;
     }
 
     setLoading(true);
@@ -125,10 +138,17 @@ const Dmm_Template = () => {
       }, 2000);
       
     } catch (error) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.message || 'Failed to save template' 
-      });
+      if (error.response?.status === 409) {
+        setMessage({ 
+          type: 'error', 
+          text: 'A template with this equipment name already exists. Please use a different name.' 
+        });
+      } else {
+        setMessage({ 
+          type: 'error', 
+          text: error.response?.data?.message || 'Failed to save template' 
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -143,7 +163,9 @@ const Dmm_Template = () => {
         </div>
 
         <div className="bg-gray-800 border border-gray-700 p-4 rounded-lg mb-6">
-          <label className="block text-sm font-semibold text-gray-300 mb-2">Equipment Name</label>
+          <label className="block text-sm font-semibold text-gray-300 mb-2">
+            Equipment Name <span className="text-red-500">*</span>
+          </label>
           <input
             type="text"
             value={template.equipmentName}
@@ -170,7 +192,7 @@ const Dmm_Template = () => {
               <input
                 type="text"
                 value={section.sectionName}
-                onChange={(e) => updateSectionName(sIdx, e.target.value)}
+                onChange={(e) => updateSection(sIdx, 'sectionName', e.target.value)}
                 placeholder="e.g., DC VOLTS GAIN TEST"
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 text-sm focus:border-blue-500 focus:outline-none"
               />
@@ -183,7 +205,7 @@ const Dmm_Template = () => {
                 min="1"
                 max="20"
                 value={section.dataColumns}
-                onChange={(e) => updateDataColumns(sIdx, e.target.value)}
+                onChange={(e) => updateSection(sIdx, 'dataColumns', e.target.value)}
                 className="w-24 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 text-sm focus:border-blue-500 focus:outline-none"
               />
               <span className="ml-2 text-xs text-gray-500">(DATA 1 to DATA {section.dataColumns})</span>
@@ -210,8 +232,12 @@ const Dmm_Template = () => {
                     <thead>
                       <tr className="bg-gray-700">
                         <th className="border border-gray-600 px-2 py-1">#</th>
-                        <th className="border border-gray-600 px-2 py-1">Applied Value</th>
-                        <th className="border border-gray-600 px-2 py-1">Unit</th>
+                        <th className="border border-gray-600 px-2 py-1">
+                          Applied Value <span className="text-red-500">*</span>
+                        </th>
+                        <th className="border border-gray-600 px-2 py-1">
+                          Unit <span className="text-red-500">*</span>
+                        </th>
                         {Array.from({ length: section.dataColumns }, (_, i) => (
                           <th key={i} className="border border-gray-600 px-2 py-1 bg-blue-900">DATA {i + 1}</th>
                         ))}
@@ -229,7 +255,7 @@ const Dmm_Template = () => {
                             <input
                               type="text"
                               value={row.appliedValue}
-                              onChange={(e) => updateRowField(sIdx, rIdx, 'appliedValue', e.target.value)}
+                              onChange={(e) => updateRow(sIdx, rIdx, 'appliedValue', e.target.value)}
                               className="w-full px-1 py-1 bg-gray-700 border-0 rounded text-gray-100"
                               placeholder="100"
                             />
@@ -238,7 +264,7 @@ const Dmm_Template = () => {
                             <input
                               type="text"
                               value={row.unit}
-                              onChange={(e) => updateRowField(sIdx, rIdx, 'unit', e.target.value)}
+                              onChange={(e) => updateRow(sIdx, rIdx, 'unit', e.target.value)}
                               className="w-12 px-1 py-1 bg-gray-700 border-0 rounded text-gray-100"
                               placeholder="mV"
                             />
@@ -248,7 +274,7 @@ const Dmm_Template = () => {
                               <input
                                 type="text"
                                 value={dataVal}
-                                onChange={(e) => updateDataValue(sIdx, rIdx, dIdx, e.target.value)}
+                                onChange={(e) => updateRow(sIdx, rIdx, 'dataValues', e.target.value, dIdx)}
                                 className="w-full px-1 py-1 bg-gray-700 border-0 rounded text-gray-100"
                                 placeholder="0"
                               />
@@ -258,7 +284,7 @@ const Dmm_Template = () => {
                             <input
                               type="text"
                               value={row.uncertainty}
-                              onChange={(e) => updateRowField(sIdx, rIdx, 'uncertainty', e.target.value)}
+                              onChange={(e) => updateRow(sIdx, rIdx, 'uncertainty', e.target.value)}
                               className="w-full px-1 py-1 bg-gray-700 border-0 rounded text-gray-100"
                               placeholder="±0.01"
                             />
@@ -267,7 +293,7 @@ const Dmm_Template = () => {
                             <input
                               type="text"
                               value={row.marginOfError}
-                              onChange={(e) => updateRowField(sIdx, rIdx, 'marginOfError', e.target.value)}
+                              onChange={(e) => updateRow(sIdx, rIdx, 'marginOfError', e.target.value)}
                               className="w-full px-1 py-1 bg-gray-700 border-0 rounded text-gray-100"
                               placeholder="±0.5%"
                             />
@@ -276,7 +302,7 @@ const Dmm_Template = () => {
                             <input
                               type="text"
                               value={row.remarks}
-                              onChange={(e) => updateRowField(sIdx, rIdx, 'remarks', e.target.value)}
+                              onChange={(e) => updateRow(sIdx, rIdx, 'remarks', e.target.value)}
                               className="w-full px-1 py-1 bg-gray-700 border-0 rounded text-gray-100"
                               placeholder="Pass"
                             />
@@ -322,15 +348,13 @@ const Dmm_Template = () => {
             )}
           </button>
           
-          {message.type === 'success' && (
-            <div className="mt-3 p-3 rounded bg-green-900 border border-green-700 text-green-200 text-sm text-center">
-              ✅ {message.text}
-            </div>
-          )}
-          
-          {message.type === 'error' && (
-            <div className="mt-3 p-3 rounded bg-red-900 border border-red-700 text-red-200 text-sm text-center">
-              ❌ {message.text}
+          {message.text && (
+            <div className={`mt-3 p-3 rounded border text-sm text-center ${
+              message.type === 'success' 
+                ? 'bg-green-900 border-green-700 text-green-200' 
+                : 'bg-red-900 border-red-700 text-red-200'
+            }`}>
+              {message.text}
             </div>
           )}
         </div>

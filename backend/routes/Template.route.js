@@ -5,7 +5,7 @@ import {
   GetTemplateById,
   UpdateTemplate,
   DeleteTemplate
-} from '../controllers/create.template.js';
+} from '../controllers/template.js';
 
 const router = express.Router();
 

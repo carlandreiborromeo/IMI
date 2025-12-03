@@ -1,0 +1,28 @@
+{
+  "_id": "miq3x0qaack1lti56pv",
+  "equipmentName": "dwkadw",
+  "sections": [
+    {
+      "sectionName": "dwad",
+      "dataColumns": 5,
+      "rows": [
+        {
+          "appliedValue": "11",
+          "unit": "v",
+          "dataValues": [
+            "",
+            "",
+            "",
+            "",
+            ""
+          ],
+          "uncertainty": "",
+          "marginOfError": "",
+          "remarks": ""
+        }
+      ]
+    }
+  ],
+  "createdAt": "2025-12-03T14:33:12.178Z",
+  "updatedAt": "2025-12-03T14:33:12.178Z"
+}

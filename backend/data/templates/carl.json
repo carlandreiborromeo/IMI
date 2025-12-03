@@ -1,0 +1,28 @@
+{
+  "_id": "miq3wiq6dmg4kzb9qtc",
+  "equipmentName": "Carl",
+  "sections": [
+    {
+      "sectionName": "DC",
+      "dataColumns": 5,
+      "rows": [
+        {
+          "appliedValue": "100",
+          "unit": "v",
+          "dataValues": [
+            "",
+            "",
+            "",
+            "",
+            ""
+          ],
+          "uncertainty": "",
+          "marginOfError": "",
+          "remarks": ""
+        }
+      ]
+    }
+  ],
+  "createdAt": "2025-12-03T14:32:48.846Z",
+  "updatedAt": "2025-12-03T14:32:48.846Z"
+}
